@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="TrainLog">
+<title>TrainLog</title>
+<style>
+  :root {
+    --bg:        #eceae4;
+    --surface:   #ffffff;
+    --surface2:  #f5f3ee;
+    --surface3:  #eeece7;
+    --border:    rgba(0,0,0,0.06);
+    --shadow:    0 2px 10px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+    --shadow-sm: 0 1px 4px rgba(0,0,0,0.06);
+    --text:      #1a1916;
+    --text2:     #7b7870;
+    --text3:     #b5b2aa;
+    --accent:    #e05c1a;
+    --accent-l:  #fdf0e8;
+    --accent-d:  #c04d12;
+    --red:       #cc3333;
+    --red-l:     #fceaea;
+    --radius:    18px;
+    --radius-sm: 12px;
+    --radius-xs: 8px;
+    --safe-top:  env(safe-area-inset-top, 0px);
+    --safe-bot:  env(safe-area-inset-bottom, 0px);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+  html, body { height: 100%; background: var(--bg); color: var(--text); font-family: -apple-system, 'SF Pro Text', system-ui, sans-serif; overflow: hidden; -webkit-font-smoothing: antialiased; }
+  #app { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+
+  /* ── Header ──────────────────────────────────────────── */
+  .hdr { background: var(--bg); padding: calc(var(--safe-top) + 16px) 20px 14px; display: flex; align-items: center; justify-content: space-between; flex-shrink: 0; }
+  .hdr-title { font-size: 20px; font-weight: 700; letter-spacing: -0.4px; }
+  .hdr-back { display: flex; align-items: center; gap: 5px; color: var(--accent); font-size: 15px; font-weight: 600; background: none; border: none; cursor: pointer; }
+  .hdr-back svg { width: 8px; height: 13px; stroke: var(--accent); stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+  .hdr-btn { background: var(--accent); color: #fff; border: none; border-radius: 20px; padding: 8px 16px; font-size: 14px; font-weight: 700; cursor: pointer; letter-spacing: -0.1px; }
+
+  /* ── Nav ─────────────────────────────────────────────── */
+  .nav { background: var(--surface); border-top: 1px solid var(--border); padding: 10px 0 calc(var(--safe-bot) + 10px); display: flex; flex-shrink: 0; }
+  .nav-btn { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; background: none; border: none; cursor: pointer; padding: 4px; color: var(--text3); font-size: 10px; font-weight: 600; letter-spacing: 0.1px; transition: color 0.15s; }
+  .nav-btn svg { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .nav-btn.active { color: var(--accent); }
+
+  /* ── Scroll ──────────────────────────────────────────── */
+  .main { flex: 1; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .pad { padding: 14px 20px 40px; }
+
+  /* ── Cards ───────────────────────────────────────────── */
+  .card { background: var(--surface); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; margin-bottom: 10px; }
+  .card-tap { cursor: pointer; transition: transform 0.12s, box-shadow 0.12s; }
+  .card-tap:active { transform: scale(0.982); box-shadow: var(--shadow-sm); }
+  .c-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+  .c-title { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
+  .c-sub { font-size: 13px; color: var(--text2); margin-top: 2px; font-weight: 400; }
+
+  /* ── Section label ───────────────────────────────────── */
+  .sec { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: var(--text3); margin: 22px 0 8px; }
+  .sec:first-child { margin-top: 0; }
+
+  /* ── Chevron ─────────────────────────────────────────── */
+  .chev svg { width: 7px; height: 12px; stroke: var(--text3); stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ── Count badge ─────────────────────────────────────── */
+  .badge { background: var(--surface2); color: var(--text2); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 20px; }
+
+  /* ── Linked badge ────────────────────────────────────── */
+  .lnk { display: inline-flex; align-items: center; gap: 3px; font-size: 11px; color: var(--accent); background: var(--accent-l); border-radius: 6px; padding: 2px 8px; font-weight: 700; flex-shrink: 0; }
+  .lnk svg { width: 10px; height: 10px; stroke: var(--accent); stroke-width: 2.2; fill: none; stroke-linecap: round; stroke-linejoin: round; }
+
+  /* ── Icon button ─────────────────────────────────────── */
+  .ibtn { width: 34px; height: 34px; border: none; border-radius: var(--radius-xs); background: var(--surface2); color: var(--text2); display: flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; }
+  .ibtn svg { width: 15px; height: 15px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .ibtn:active { opacity: 0.6; }
+
+  /* ── Buttons ─────────────────────────────────────────── */
+  .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 13px 18px; border-radius: var(--radius-sm); font-size: 15px; font-weight: 700; cursor: pointer; border: none; font-family: inherit; letter-spacing: -0.1px; }
+  .btn:active { opacity: 0.8; transform: scale(0.97); }
+  .btn-p { background: var(--accent); color: #fff; }
+  .btn-s { background: var(--surface3); color: var(--text); }
+  .btn-d { background: var(--red-l); color: var(--red); }
+  .btn-sm { padding: 9px 14px; font-size: 14px; border-radius: var(--radius-xs); }
+
+  /* ── Form ────────────────────────────────────────────── */
+  .fr { margin-bottom: 14px; }
+  label { font-size: 11px; font-weight: 700; color: var(--text2); margin-bottom: 6px; display: block; text-transform: uppercase; letter-spacing: 0.5px; }
+  input, select { background: var(--surface2); border: 1.5px solid transparent; border-radius: var(--radius-xs); color: var(--text); font-size: 16px; padding: 12px 13px; width: 100%; outline: none; -webkit-appearance: none; font-family: inherit; transition: border-color 0.15s, background 0.15s; }
+  input:focus, select:focus { border-color: var(--accent); background: var(--surface); }
+  .fg2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .fg3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+
+  /* ── Exercise item ───────────────────────────────────── */
+  .ex-item { background: var(--surface); border-radius: var(--radius-sm); box-shadow: var(--shadow); padding: 14px; margin-bottom: 8px; }
+  .ex-name { font-size: 16px; font-weight: 700; letter-spacing: -0.2px; }
+  .ex-stats { display: flex; gap: 6px; margin-top: 8px; flex-wrap: wrap; }
+  .sp { font-size: 12px; color: var(--text2); background: var(--surface2); padding: 4px 10px; border-radius: 20px; font-weight: 500; }
+  .sp strong { color: var(--text); font-weight: 700; }
+
+  /* ── Modal ───────────────────────────────────────────── */
+  .moverlay { position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 100; display: flex; align-items: flex-end; backdrop-filter: blur(3px); -webkit-backdrop-filter: blur(3px); }
+  .modal { background: var(--surface); border-radius: 24px 24px 0 0; padding: 0 20px calc(var(--safe-bot) + 24px); width: 100%; max-height: 92vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
+  .mhandle { width: 36px; height: 4px; background: var(--surface3); border-radius: 2px; margin: 12px auto 20px; }
+  .mtitle { font-size: 20px; font-weight: 700; margin-bottom: 20px; letter-spacing: -0.4px; }
+  .divider { height: 1px; background: var(--border); margin: 16px 0; }
+
+  /* ── Toast ───────────────────────────────────────────── */
+  .toast { position: fixed; bottom: calc(var(--safe-bot) + 88px); left: 50%; transform: translateX(-50%); background: var(--text); color: #fff; padding: 10px 20px; border-radius: 20px; font-size: 13px; font-weight: 600; z-index: 200; white-space: nowrap; opacity: 0; transition: opacity 0.2s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+
+  /* ── Empty ───────────────────────────────────────────── */
+  .empty { text-align: center; padding: 60px 28px; }
+  .empty svg { width: 36px; height: 36px; stroke: var(--surface3); stroke-width: 1.5; fill: none; stroke-linecap: round; stroke-linejoin: round; margin-bottom: 14px; }
+  .empty p { font-size: 14px; line-height: 1.65; color: var(--text2); }
+
+  /* ── Progress ────────────────────────────────────────── */
+  canvas { display: block; width: 100%; border-radius: var(--radius-sm); }
+  .stat-card { text-align: center; padding: 16px 10px; }
+  .stat-val { font-size: 26px; font-weight: 800; letter-spacing: -1px; }
+  .stat-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text3); margin-bottom: 6px; }
+  .hist-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--border); }
+  .hist-row:last-child { border-bottom: none; }
+
+  /* ── Breadcrumb ──────────────────────────────────────── */
+  .bc { font-size: 12px; color: var(--text2); margin-bottom: 14px; display: flex; align-items: center; gap: 5px; font-weight: 600; flex-wrap: wrap; }
+  .bc .sep { color: var(--text3); font-weight: 400; }
+
+  select option { background: #fff; }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="hdr" id="hdr">
+    <div class="hdr-title" id="hdr-title">TrainLog</div>
+    <div id="hdr-right"></div>
+  </div>
+  <div class="main" id="main"></div>
+  <nav class="nav">
+    <button class="nav-btn active" data-tab="programs" onclick="switchTab('programs')">
+      <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>
+      Programs
+    </button>
+    <button class="nav-btn" data-tab="library" onclick="switchTab('library')">
+      <svg viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 012-2h13M4 19a2 2 0 002 2h13M4 19h13m0-16v16"/></svg>
+      Library
+    </button>
+    <button class="nav-btn" data-tab="progress" onclick="switchTab('progress')">
+      <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      Progress
+    </button>
+    <button class="nav-btn" data-tab="data" onclick="switchTab('data')">
+      <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      Data
+    </button>
+  </nav>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── Default exercise library ──────────────────────────────────────────────────
+const DEFAULT_EXERCISES = [
+  // Chest
+  {name:'Barbell Bench Press',   category:'Strength',  muscleGroup:'Chest'},
+  {name:'Cable Fly',             category:'Strength',  muscleGroup:'Chest'},
+  {name:'Dips',                  category:'Strength',  muscleGroup:'Chest / Triceps'},
+  {name:'Incline Dumbbell Press',category:'Strength',  muscleGroup:'Chest'},
+  {name:'Weighted Dips',         category:'Strength',  muscleGroup:'Chest / Triceps'},
+  // Shoulders
+  {name:'Dumbbell Push Press',   category:'Strength',  muscleGroup:'Shoulders'},
+  {name:'Dumbbell Shoulder Press',category:'Strength', muscleGroup:'Shoulders'},
+  {name:'Face Pulls',            category:'Strength',  muscleGroup:'Rear Delts'},
+  {name:'Jump Shrugs',           category:'Strength',  muscleGroup:'Traps / Shoulders'},
+  {name:'Overhead Press',        category:'Strength',  muscleGroup:'Shoulders'},
+  {name:'Push Press',            category:'Strength',  muscleGroup:'Shoulders'},
+  // Back
+  {name:'Assisted Pull-Up',      category:'Strength',  muscleGroup:'Back / Lats'},
+  {name:'Barbell Row',           category:'Strength',  muscleGroup:'Back'},
+  {name:'Cable Row',             category:'Strength',  muscleGroup:'Back'},
+  {name:'Lat Pulldown',          category:'Strength',  muscleGroup:'Back / Lats'},
+  {name:'Pull-Ups',              category:'Calisthenics', muscleGroup:'Back / Lats'},
+  {name:'Weighted Pull-Up',      category:'Strength',  muscleGroup:'Back / Lats'},
+  // Arms
+  {name:'Hammer Curl',           category:'Strength',  muscleGroup:'Biceps'},
+  {name:'Incline Dumbbell Curl', category:'Strength',  muscleGroup:'Biceps'},
+  {name:'Tricep Pushdown',       category:'Strength',  muscleGroup:'Triceps'},
+  // Legs
+  {name:'Back Squat',            category:'Strength',  muscleGroup:'Quads / Glutes'},
+  {name:'Box Jump',              category:'Strength',  muscleGroup:'Quads'},
+  {name:'Box Step-Ups',          category:'Strength',  muscleGroup:'Quads / Glutes'},
+  {name:'Bulgarian Split Squat', category:'Strength',  muscleGroup:'Quads / Glutes'},
+  {name:'Calf Raises',           category:'Strength',  muscleGroup:'Calves'},
+  {name:'Deadlift',              category:'Strength',  muscleGroup:'Hamstrings / Glutes'},
+  {name:'Front Squat',           category:'Strength',  muscleGroup:'Quads / Glutes'},
+  {name:'Leg Curl',              category:'Strength',  muscleGroup:'Hamstrings'},
+  {name:'Leg Press',             category:'Strength',  muscleGroup:'Quads'},
+  {name:'Romanian Deadlift',     category:'Strength',  muscleGroup:'Hamstrings'},
+  {name:'Standing Calf Raise',   category:'Strength',  muscleGroup:'Calves'},
+  {name:'Walking Lunges',        category:'Strength',  muscleGroup:'Quads / Glutes'},
+  // Olympic / Full body
+  {name:'Burpee + Pull-Up',      category:'Full Body', muscleGroup:'Full Body'},
+  {name:'Farmer\'s Carry',       category:'Full Body', muscleGroup:'Full Body'},
+  {name:'Kettlebell Swings',     category:'Full Body', muscleGroup:'Posterior Chain'},
+  {name:'Medicine Ball Slam',    category:'Full Body', muscleGroup:'Full Body'},
+  {name:'Power Clean',           category:'Olympic',   muscleGroup:'Full Body'},
+  // Core
+  {name:'Hanging Knee Raise',    category:'Calisthenics', muscleGroup:'Core'},
+  {name:'Hanging Leg Raises',    category:'Calisthenics', muscleGroup:'Core / Hip Flexors'},
+  {name:'Plank',                 category:'Calisthenics', muscleGroup:'Core'},
+  {name:'Plank with Shoulder Tap',category:'Calisthenics',muscleGroup:'Core'},
+  {name:'Russian Twist',         category:'Calisthenics', muscleGroup:'Obliques'},
+  {name:'Side Plank',            category:'Calisthenics', muscleGroup:'Obliques / Core'},
+  // Cardio
+  {name:'Bike Intervals',        category:'Cardio',    muscleGroup:'Cardio'},
+  {name:'Elliptical Intervals',  category:'Cardio',    muscleGroup:'Cardio'},
+  {name:'HIIT Sprints',          category:'Cardio',    muscleGroup:'Cardio'},
+  {name:'Row Intervals',         category:'Cardio',    muscleGroup:'Cardio'},
+];
+
+// ── DB ────────────────────────────────────────────────────────────────────────
+let db;
+function openDB() {
+  return new Promise((res, rej) => {
+    const req = indexedDB.open('trainlog_v3', 1);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('programs'))   d.createObjectStore('programs',  { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('exercises'))  d.createObjectStore('exercises', { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('weight_log')) {
+        const ws = d.createObjectStore('weight_log', { keyPath: 'id', autoIncrement: true });
+        ws.createIndex('exerciseId', 'exerciseId');
+      }
+      if (!d.objectStoreNames.contains('meta'))       d.createObjectStore('meta', { keyPath: 'key' });
+    };
+    req.onsuccess = e => { db = e.target.result; res(db); };
+    req.onerror = () => rej(req.error);
+  });
+}
+const dbGet    = (s,k) => new Promise(r => { db.transaction(s).objectStore(s).get(k).onsuccess = e => r(e.target.result); });
+const dbGetAll = s     => new Promise(r => { db.transaction(s).objectStore(s).getAll().onsuccess = e => r(e.target.result); });
+const dbPut    = (s,v) => new Promise(r => { const t=db.transaction(s,'readwrite'); t.objectStore(s).put(v); t.oncomplete=()=>r(); });
+const dbDel    = (s,k) => new Promise(r => { const t=db.transaction(s,'readwrite'); t.objectStore(s).delete(k); t.oncomplete=()=>r(); });
+const dbClear  = s     => new Promise(r => { const t=db.transaction(s,'readwrite'); t.objectStore(s).clear(); t.oncomplete=()=>r(); });
+const dbIdx    = (s,i,k)=> new Promise(r => { db.transaction(s).objectStore(s).index(i).getAll(k).onsuccess = e => r(e.target.result); });
+
+async function seedLibrary() {
+  const meta = await dbGet('meta','seeded');
+  if (meta) return;
+  const uid = () => Date.now().toString(36)+Math.random().toString(36).slice(2);
+  for (const ex of DEFAULT_EXERCISES) {
+    await dbPut('exercises', { id: uid(), ...ex, notes: '' });
+    await new Promise(r => setTimeout(r, 1)); // avoid key collision
+  }
+  await dbPut('meta', { key:'seeded', value: true });
+}
+
+// ── State ─────────────────────────────────────────────────────────────────────
+let currentTab = 'programs';
+let nav = [];
+let modalEl = null;
+
+// ── Utils ─────────────────────────────────────────────────────────────────────
+const uid  = () => Date.now().toString(36)+Math.random().toString(36).slice(2);
+const esc  = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+const sortAlpha = arr => [...arr].sort((a,b) => a.name.localeCompare(b.name));
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  clearTimeout(t._t); t._t = setTimeout(() => t.classList.remove('show'), 2200);
+}
+const chevSVG  = `<div class="chev"><svg viewBox="0 0 8 13"><path d="M1 1l6 5.5-6 5.5"/></svg></div>`;
+const trashSVG = `<svg viewBox="0 0 24 24"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>`;
+const editSVG  = `<svg viewBox="0 0 24 24"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>`;
+const linkSVG  = `<svg viewBox="0 0 24 24"><path d="M10 13a5 5 0 007.54.54l3-3a5 5 0 00-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 00-7.54-.54l-3 3a5 5 0 007.07 7.07l1.71-1.71"/></svg>`;
+const starSVG  = (on) => `<svg viewBox="0 0 24 24" style="width:16px;height:16px;stroke:${on?'var(--accent)':'currentColor'};fill:${on?'var(--accent)':'none'};stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>`;
+
+async function getStarred() {
+  const m = await dbGet('meta','starred'); return m ? m.value : [];
+}
+async function toggleStar(pid,phid,wid) {
+  const starred = await getStarred();
+  const key = `${pid}|${phid}|${wid}`;
+  const idx = starred.findIndex(s=>s.key===key);
+  if (idx>=0) { starred.splice(idx,1); toast('Unpinned'); }
+  else { starred.push({key,pid,phid,wid}); toast('Week pinned'); }
+  await dbPut('meta',{key:'starred',value:starred});
+  render();
+}
+function isStarred(starred,pid,phid,wid) {
+  return starred.some(s=>s.key===`${pid}|${phid}|${wid}`);
+}
+
+// ── Tab ───────────────────────────────────────────────────────────────────────
+function switchTab(tab) {
+  currentTab = tab; nav = [];
+  document.querySelectorAll('.nav-btn').forEach(b => b.classList.toggle('active', b.dataset.tab===tab));
+  render();
+}
+
+// ── Render ────────────────────────────────────────────────────────────────────
+async function render() {
+  const main  = document.getElementById('main');
+  const hdr   = document.getElementById('hdr');
+  const title = document.getElementById('hdr-title');
+  const right = document.getElementById('hdr-right');
+
+  hdr.querySelectorAll('.hdr-back').forEach(b=>b.remove());
+  if (nav.length > 0) {
+    const b = document.createElement('button');
+    b.className = 'hdr-back';
+    b.innerHTML = `<svg viewBox="0 0 8 13"><path d="M7 1L1 6.5 7 12"/></svg> Back`;
+    b.onclick = () => { nav.pop(); render(); };
+    hdr.insertBefore(b, hdr.firstChild);
+    title.textContent = nav[nav.length-1].label;
+  } else {
+    title.textContent = {programs:'TrainLog',library:'Library',progress:'Progress',data:'Data'}[currentTab];
+  }
+  right.innerHTML = '';
+
+  if (currentTab === 'programs') {
+    if      (nav.length===0) { right.innerHTML=`<button class="hdr-btn" onclick="showAddProgram()">+ New</button>`; main.innerHTML=await renderPrograms(); }
+    else if (nav.length===1) { right.innerHTML=`<button class="hdr-btn" onclick="showAddPhase('${nav[0].id}')">+ Phase</button>`; main.innerHTML=await renderProgram(nav[0].id); }
+    else if (nav.length===2) { right.innerHTML=`<button class="hdr-btn" onclick="showAddWeek('${nav[0].id}','${nav[1].id}')">+ Week</button>`; main.innerHTML=await renderPhase(nav[0].id,nav[1].id); }
+    else if (nav.length===3) { right.innerHTML=`<button class="hdr-btn" onclick="showAddDay('${nav[0].id}','${nav[1].id}','${nav[2].id}')">+ Day</button>`; main.innerHTML=await renderWeek(nav[0].id,nav[1].id,nav[2].id); }
+    else if (nav.length===4) { right.innerHTML=`<button class="hdr-btn" onclick="showAddExToDay('${nav[0].id}','${nav[1].id}','${nav[2].id}','${nav[3].id}')">+ Exercise</button>`; main.innerHTML=await renderDay(nav[0].id,nav[1].id,nav[2].id,nav[3].id); }
+  } else if (currentTab==='library')  { right.innerHTML=`<button class="hdr-btn" onclick="showAddExercise()">+ New</button>`; main.innerHTML=await renderLibrary(); }
+  else if (currentTab==='progress')   { main.innerHTML=await renderProgress(); }
+  else if (currentTab==='data')       { main.innerHTML=await renderData(); }
+}
+
+// ── Programs ──────────────────────────────────────────────────────────────────
+async function renderPrograms() {
+  const list    = await dbGetAll('programs');
+  const starred = await getStarred();
+  if (!list.length) return empty(`<svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>`,'No programs yet.<br>Tap <strong>+ New</strong> to create your first.');
+  const pMap = Object.fromEntries(list.map(p=>[p.id,p]));
+  const validPinned = starred.filter(s=>{
+    const prog=pMap[s.pid]; if(!prog) return false;
+    const ph=(prog.phases||[]).find(x=>x.id===s.phid); if(!ph) return false;
+    return !!(ph.weeks||[]).find(x=>x.id===s.wid);
+  });
+  let pinnedHtml = '';
+  if (validPinned.length) {
+    pinnedHtml = `<div class="sec" style="margin-top:0">Pinned</div>`;
+    validPinned.forEach(s=>{
+      const prog=pMap[s.pid];
+      const ph=(prog.phases||[]).find(x=>x.id===s.phid);
+      const w=(ph.weeks||[]).find(x=>x.id===s.wid);
+      const days=(w.days||[]).length;
+      pinnedHtml+=`<div class="card card-tap" onclick="openWeek('${s.pid}','${s.phid}','${s.wid}')">
+        <div class="c-row">
+          <div style="min-width:0">
+            <div class="c-title">${esc(w.name)}</div>
+            <div class="c-sub">${esc(prog.name)} &middot; ${esc(ph.name)} &middot; ${days} day${days!==1?'s':''}</div>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px">
+            <button class="ibtn" style="color:var(--accent);background:var(--accent-l)" onclick="event.stopPropagation();toggleStar('${s.pid}','${s.phid}','${s.wid}')">${starSVG(true)}</button>
+            ${chevSVG}
+          </div>
+        </div>
+      </div>`;
+    });
+    pinnedHtml+=`<div class="sec">All Programs</div>`;
+  }
+  const programsHtml = list.map(p=>{
+    const n=(p.phases||[]).length;
+    return `<div class="card card-tap" onclick="openProgram('${p.id}')">
+      <div class="c-row">
+        <div style="min-width:0">
+          <div class="c-title">${esc(p.name)}</div>
+          <div class="c-sub">${n} phase${n!==1?'s':''}</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="badge">${n}</span>
+          <button class="ibtn" onclick="event.stopPropagation();deleteProgram('${p.id}')">${trashSVG}</button>
+          ${chevSVG}
+        </div>
+      </div>
+    </div>`;
+  }).join('');
+  return `<div class="pad">${pinnedHtml}${programsHtml}</div>`;
+}
+
+async function renderProgram(pid) {
+  const p = await dbGet('programs',pid);
+  const phases = p.phases||[];
+  if (!phases.length) return empty(`<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>`,'No phases yet.<br>Tap <strong>+ Phase</strong> to add one.');
+  return `<div class="pad">${phases.map(ph=>{
+    const n=(ph.weeks||[]).length;
+    return `<div class="card card-tap" onclick="openPhase('${pid}','${ph.id}')">
+      <div class="c-row">
+        <div style="min-width:0"><div class="c-title">${esc(ph.name)}</div><div class="c-sub">${n} week${n!==1?'s':''}</div></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="ibtn" onclick="event.stopPropagation();deletePhase('${pid}','${ph.id}')">${trashSVG}</button>
+          ${chevSVG}
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function renderPhase(pid,phid) {
+  const p=await dbGet('programs',pid); const ph=(p.phases||[]).find(x=>x.id===phid); if(!ph) return '';
+  const weeks=ph.weeks||[];
+  if (!weeks.length) return empty(`<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>`,'No weeks yet.<br>Tap <strong>+ Week</strong>.');
+  const starred=await getStarred();
+  return `<div class="pad">${weeks.map(w=>{
+    const n=(w.days||[]).length;
+    const pinned=isStarred(starred,pid,phid,w.id);
+    return `<div class="card card-tap" onclick="openWeek('${pid}','${phid}','${w.id}')">
+      <div class="c-row">
+        <div style="min-width:0"><div class="c-title">${esc(w.name)}</div><div class="c-sub">${n} day${n!==1?'s':''}</div></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="ibtn" style="${pinned?'color:var(--accent);background:var(--accent-l)':''}" onclick="event.stopPropagation();toggleStar('${pid}','${phid}','${w.id}')">${starSVG(pinned)}</button>
+          <button class="ibtn" onclick="event.stopPropagation();deleteWeek('${pid}','${phid}','${w.id}')">${trashSVG}</button>
+          ${chevSVG}
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function renderWeek(pid,phid,wid) {
+  const p=await dbGet('programs',pid); const ph=(p.phases||[]).find(x=>x.id===phid); const w=(ph.weeks||[]).find(x=>x.id===wid); if(!w) return '';
+  const days=w.days||[];
+  if (!days.length) return empty(`<svg viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>`,'No days yet.<br>Tap <strong>+ Day</strong>.');
+  return `<div class="pad">${days.map(d=>{
+    const n=(d.exercises||[]).length;
+    return `<div class="card card-tap" onclick="openDay('${pid}','${phid}','${wid}','${d.id}')">
+      <div class="c-row">
+        <div style="min-width:0"><div class="c-title">${esc(d.name)}</div><div class="c-sub">${n} exercise${n!==1?'s':''}</div></div>
+        <div style="display:flex;align-items:center;gap:8px">
+          <button class="ibtn" onclick="event.stopPropagation();deleteDay('${pid}','${phid}','${wid}','${d.id}')">${trashSVG}</button>
+          ${chevSVG}
+        </div>
+      </div>
+    </div>`;
+  }).join('')}</div>`;
+}
+
+async function renderDay(pid,phid,wid,did) {
+  const p=await dbGet('programs',pid);
+  const ph=(p.phases||[]).find(x=>x.id===phid);
+  const w=(ph.weeks||[]).find(x=>x.id===wid);
+  const d=(w.days||[]).find(x=>x.id===did); if(!d) return '';
+  const allEx=await dbGetAll('exercises');
+  const exMap=Object.fromEntries(allEx.map(e=>[e.id,e]));
+  const exercises=d.exercises||[];
+  let html=`<div class="pad"><div class="bc">${esc(ph.name)}<span class="sep">›</span>${esc(w.name)}</div>`;
+  if (!exercises.length) { html+=`<div style="text-align:center;padding:48px 0;color:var(--text2);font-size:14px">No exercises yet.<br>Tap <strong>+ Exercise</strong> to add one.</div>`; }
+  exercises.forEach(ex=>{
+    const lib=ex.libraryId?exMap[ex.libraryId]:null;
+    const name=lib?lib.name:(ex.name||'Exercise');
+    html+=`<div class="ex-item">
+      <div class="c-row" style="align-items:flex-start">
+        <div style="flex:1;min-width:0">
+          <div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+            <div class="ex-name">${esc(name)}</div>
+            ${lib?`<span class="lnk">${linkSVG} linked</span>`:''}
+          </div>
+          <div class="ex-stats">
+            <span class="sp"><strong>${ex.sets||'—'}</strong> sets</span>
+            <span class="sp"><strong>${ex.reps||'—'}</strong> reps</span>
+            <span class="sp"><strong>${ex.weight||'—'}</strong> ${esc(ex.unit||'kg')}</span>
+          </div>
+          ${ex.notes?`<div style="font-size:12px;color:var(--text2);margin-top:7px">${esc(ex.notes)}</div>`:''}
+        </div>
+        <div style="display:flex;gap:6px;padding-left:8px">
+          <button class="ibtn" onclick="showEditEx('${pid}','${phid}','${wid}','${did}','${ex.id}')">${editSVG}</button>
+          <button class="ibtn" onclick="deleteEx('${pid}','${phid}','${wid}','${did}','${ex.id}')">${trashSVG}</button>
+        </div>
+      </div>
+    </div>`;
+  });
+  return html+'</div>';
+}
+
+// ── Library ───────────────────────────────────────────────────────────────────
+async function renderLibrary() {
+  const list = sortAlpha(await dbGetAll('exercises'));
+  if (!list.length) return empty(`<svg viewBox="0 0 24 24"><path d="M4 19V5a2 2 0 012-2h13M4 19a2 2 0 002 2h13M4 19h13m0-16v16"/></svg>`,'No exercises yet.');
+  const cats=[...new Set(list.map(e=>e.category||'Other'))].sort();
+  return `<div class="pad">${cats.map(cat=>{
+    const exs=list.filter(e=>(e.category||'Other')===cat);
+    return `<div class="sec">${esc(cat)}</div>`+exs.map(e=>`
+      <div class="card card-tap" onclick="showExDetail('${e.id}')">
+        <div class="c-row">
+          <div style="min-width:0"><div class="c-title">${esc(e.name)}</div>${e.muscleGroup?`<div class="c-sub">${esc(e.muscleGroup)}</div>`:''}</div>
+          ${chevSVG}
+        </div>
+      </div>`).join('');
+  }).join('')}</div>`;
+}
+
+// ── Progress ──────────────────────────────────────────────────────────────────
+async function renderProgress() {
+  const list = sortAlpha(await dbGetAll('exercises'));
+  if (!list.length) return empty(`<svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,'Add exercises to your library to track progress.');
+  return `<div class="pad">
+    <select id="prog-sel" onchange="loadChart(this.value)">
+      <option value="">Select an exercise…</option>
+      ${list.map(e=>`<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('')}
+    </select>
+    <div id="chart-area" style="margin-top:20px"></div>
+  </div>`;
+}
+
+async function loadChart(exId) {
+  const area=document.getElementById('chart-area');
+  if (!exId){area.innerHTML='';return;}
+  const logs=await dbIdx('weight_log','exerciseId',exId);
+  logs.sort((a,b)=>new Date(a.date)-new Date(b.date));
+  if (!logs.length){area.innerHTML=`<div style="text-align:center;color:var(--text2);padding:40px;font-size:14px">No weight data recorded yet.</div>`;return;}
+  const latest=logs[logs.length-1]; const best=Math.max(...logs.map(l=>l.weight));
+  area.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div class="card stat-card"><div class="stat-lbl">Latest</div><div class="stat-val" style="color:var(--accent)">${latest.weight}</div><div style="font-size:12px;color:var(--text2)">${latest.unit||'kg'}</div></div>
+      <div class="card stat-card"><div class="stat-lbl">Best</div><div class="stat-val">${best}</div><div style="font-size:12px;color:var(--text2)">${logs.find(l=>l.weight===best)?.unit||'kg'}</div></div>
+    </div>
+    <div class="card" style="padding:16px;margin-bottom:12px"><canvas id="prog-c" height="180"></canvas></div>
+    <div class="sec">History</div>
+    <div class="card" style="padding:4px 16px">
+      ${logs.slice().reverse().map(l=>`<div class="hist-row"><div style="font-size:13px;color:var(--text2)">${new Date(l.date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</div><div style="font-size:16px;font-weight:700">${l.weight} <span style="font-size:12px;color:var(--text2);font-weight:400">${l.unit||'kg'}</span></div></div>`).join('')}
+    </div>`;
+  requestAnimationFrame(()=>{
+    const canvas=document.getElementById('prog-c'); if(!canvas)return;
+    const ctx=canvas.getContext('2d'); const dpr=window.devicePixelRatio||1;
+    const W=canvas.offsetWidth,H=180;
+    canvas.width=W*dpr; canvas.height=H*dpr; ctx.scale(dpr,dpr);
+    const p={t:14,r:14,b:28,l:40};
+    const vals=logs.map(l=>parseFloat(l.weight));
+    const minV=Math.min(...vals)*0.94, maxV=Math.max(...vals)*1.06, rng=maxV-minV||1;
+    const toX=i=>p.l+(i/(logs.length-1||1))*(W-p.l-p.r);
+    const toY=v=>p.t+(1-(v-minV)/rng)*(H-p.t-p.b);
+    ctx.fillStyle='#fff'; ctx.fillRect(0,0,W,H);
+    // Grid
+    ctx.strokeStyle='#eeece7'; ctx.lineWidth=1;
+    [0,.5,1].forEach(f=>{
+      const y=p.t+f*(H-p.t-p.b);
+      ctx.beginPath();ctx.moveTo(p.l,y);ctx.lineTo(W-p.r,y);ctx.stroke();
+      ctx.fillStyle='#b5b2aa';ctx.font=`10px -apple-system`;ctx.textAlign='right';
+      ctx.fillText((minV+((1-f)*rng)).toFixed(1),p.l-4,y+3);
+    });
+    // Area
+    const grad=ctx.createLinearGradient(0,p.t,0,H-p.b);
+    grad.addColorStop(0,'rgba(224,92,26,0.12)'); grad.addColorStop(1,'rgba(224,92,26,0)');
+    ctx.beginPath(); ctx.moveTo(toX(0),toY(vals[0]));
+    vals.forEach((_,i)=>{ if(i>0) ctx.lineTo(toX(i),toY(vals[i])); });
+    ctx.lineTo(toX(logs.length-1),H-p.b); ctx.lineTo(toX(0),H-p.b); ctx.closePath();
+    ctx.fillStyle=grad; ctx.fill();
+    // Line
+    ctx.strokeStyle='#e05c1a'; ctx.lineWidth=2.5; ctx.lineJoin='round';
+    ctx.beginPath(); vals.forEach((_,i)=>{ i===0?ctx.moveTo(toX(i),toY(vals[i])):ctx.lineTo(toX(i),toY(vals[i])); }); ctx.stroke();
+    // Dots
+    vals.forEach((_,i)=>{
+      ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(toX(i),toY(vals[i]),4.5,0,Math.PI*2); ctx.fill();
+      ctx.fillStyle='#e05c1a'; ctx.beginPath(); ctx.arc(toX(i),toY(vals[i]),3,0,Math.PI*2); ctx.fill();
+    });
+    // X labels
+    ctx.fillStyle='#b5b2aa'; ctx.textAlign='center';
+    const step=Math.max(1,Math.floor(logs.length/5));
+    logs.forEach((l,i)=>{ if(i%step===0||i===logs.length-1){const d=new Date(l.date);ctx.fillText(`${d.getDate()}/${d.getMonth()+1}`,toX(i),H-6);} });
+  });
+}
+
+// ── Data ──────────────────────────────────────────────────────────────────────
+async function renderData() {
+  const lastExp = await dbGet('meta','last_exported');
+  const lastImp = await dbGet('meta','last_imported');
+  const fmtDate = iso => iso ? new Date(iso).toLocaleString('en-GB',{day:'numeric',month:'short',year:'numeric',hour:'2-digit',minute:'2-digit'}) : null;
+  const expLabel = lastExp ? `<div style="font-size:12px;color:var(--text2);margin-top:10px">Last exported: <strong>${fmtDate(lastExp.value)}</strong></div>` : `<div style="font-size:12px;color:var(--red);margin-top:10px;font-weight:600">Not yet exported — back up now.</div>`;
+  const impLabel = lastImp ? `<div style="font-size:12px;color:var(--text2);margin-top:8px">Last imported: ${fmtDate(lastImp.value)}</div>` : '';
+  return `<div class="pad">
+    <div class="sec" style="margin-top:0">Backup</div>
+    <div class="card">
+      <div style="font-size:14px;color:var(--text2);line-height:1.65;margin-bottom:14px">Exports everything: programs, structure, exercises, weight history, and pinned weeks. Store the file in iCloud Drive or similar so it survives a Safari data clear.</div>
+      <button class="btn btn-p btn-sm btn-full" onclick="exportData()">Export JSON backup</button>
+      ${expLabel}
+    </div>
+    <div class="sec">Restore</div>
+    <div class="card">
+      <div style="font-size:14px;color:var(--text2);line-height:1.65;margin-bottom:14px">Import a previously exported JSON file. All existing data is replaced with the backup.</div>
+      <input type="file" id="imp-file" accept=".json" onchange="importData(this)" style="margin-bottom:8px">
+      <div id="imp-status" style="font-size:13px;color:var(--text2)"></div>
+      ${impLabel}
+    </div>
+    <div class="sec">Danger</div>
+    <div class="card"><button class="btn btn-d btn-sm" onclick="clearAll()">Clear all data</button></div>
+  </div>`;
+}
+
+async function exportData() {
+  const programs  = await dbGetAll('programs');
+  const exercises = await dbGetAll('exercises');
+  const weightLog = await dbGetAll('weight_log');
+  const meta      = await dbGetAll('meta');
+  const exportedAt = new Date().toISOString();
+  const payload = { version:3, exportedAt, programs, exercises, weightLog, meta };
+  const filename = `trainlog-${exportedAt.slice(0,10)}.json`;
+  dl(new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}), filename);
+  await dbPut('meta',{key:'last_exported',value:exportedAt});
+  toast('Backup saved');
+  render();
+}
+function dl(blob,name){const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();}
+
+async function importData(input){
+  const file=input.files[0]; if(!file)return;
+  const st=document.getElementById('imp-status');
+  st.textContent='Reading file…';
+  try{
+    const text=await file.text();
+    const d=JSON.parse(text);
+    if(!d.programs && !d.exercises){ st.textContent='Unrecognised file format.'; return; }
+    // Clear everything first so the restore is clean, not merged
+    await dbClear('programs'); await dbClear('exercises'); await dbClear('weight_log'); await dbClear('meta');
+    if(d.programs)  for(const p of d.programs)  await dbPut('programs',p);
+    if(d.exercises) for(const e of d.exercises) await dbPut('exercises',e);
+    if(d.weightLog) for(const w of d.weightLog) await dbPut('weight_log',w);
+    // Restore meta but stamp a new import time (skip old export timestamp)
+    if(d.meta) for(const m of d.meta) if(m.key!=='last_exported'&&m.key!=='last_imported') await dbPut('meta',m);
+    await dbPut('meta',{key:'last_imported',value:new Date().toISOString()});
+    st.textContent='';
+    toast('Restored successfully'); render();
+  }catch(e){ st.textContent='Error: '+e.message; }
+}
+
+async function clearAll(){
+  if(!confirm('Delete ALL data? This cannot be undone.'))return;
+  await dbClear('programs'); await dbClear('exercises'); await dbClear('weight_log'); await dbClear('meta');
+  toast('Cleared'); render();
+}
+
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function showModal(html){
+  closeModal();
+  modalEl=document.createElement('div'); modalEl.className='moverlay';
+  modalEl.innerHTML=`<div class="modal"><div class="mhandle"></div>${html}</div>`;
+  modalEl.addEventListener('click',e=>{if(e.target===modalEl)closeModal();});
+  document.body.appendChild(modalEl);
+}
+function closeModal(){if(modalEl){modalEl.remove();modalEl=null;}}
+
+// ── Program CRUD ──────────────────────────────────────────────────────────────
+function showAddProgram(){
+  showModal(`<div class="mtitle">New Program</div>
+    <div class="fr"><label>Program name</label><input id="f0" placeholder="e.g. 12-Week Strength" autofocus></div>
+    <div class="fg3">
+      <div class="fr"><label>Phases</label><input id="f1" type="number" min="1" max="12" value="3"></div>
+      <div class="fr"><label>Weeks / phase</label><input id="f2" type="number" min="1" max="16" value="4"></div>
+      <div class="fr"><label>Days / week</label><input id="f3" type="number" min="1" max="7" value="3"></div>
+    </div>
+    <div class="card" id="prog-preview" style="background:var(--surface2);box-shadow:none;padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--text2);line-height:1.6"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="addProgram()">Generate</button>
+    </div>
+    <script>
+      function updatePreview(){
+        const ph=parseInt(document.getElementById('f1').value)||0;
+        const wk=parseInt(document.getElementById('f2').value)||0;
+        const dy=parseInt(document.getElementById('f3').value)||0;
+        const total=ph*wk*dy;
+        document.getElementById('prog-preview').innerHTML=
+          '<strong style="color:var(--text)">'+ph+'</strong> phase'+(ph!==1?'s':'')+' &nbsp;·&nbsp; '+
+          '<strong style="color:var(--text)">'+wk+'</strong> week'+(wk!==1?'s':'')+' each &nbsp;·&nbsp; '+
+          '<strong style="color:var(--text)">'+dy+'</strong> day'+(dy!==1?'s':'')+' per week'+
+          '<br><span style="color:var(--accent);font-weight:700">'+total+'</span> training days total';
+      }
+      ['f1','f2','f3'].forEach(id=>document.getElementById(id).addEventListener('input',updatePreview));
+      updatePreview();
+    <\/script>`);
+}
+async function addProgram(){
+  const name=document.getElementById('f0').value.trim();
+  if(!name){toast('Enter a program name');return;}
+  const numPhases=Math.min(12,Math.max(1,parseInt(document.getElementById('f1').value)||1));
+  const numWeeks =Math.min(16,Math.max(1,parseInt(document.getElementById('f2').value)||1));
+  const numDays  =Math.min(7, Math.max(1,parseInt(document.getElementById('f3').value)||1));
+  const phases=[];
+  for(let p=1;p<=numPhases;p++){
+    const weeks=[];
+    for(let w=1;w<=numWeeks;w++){
+      const days=[];
+      for(let d=1;d<=numDays;d++){
+        days.push({id:uid(),name:'Day '+d,exercises:[]});
+      }
+      weeks.push({id:uid(),name:'Week '+w,days});
+    }
+    phases.push({id:uid(),name:'Phase '+p,weeks});
+  }
+  await dbPut('programs',{id:uid(),name,phases});
+  closeModal();render();toast('Program generated');
+}
+async function deleteProgram(pid){
+  if(!confirm('Delete this program and all its content?'))return;
+  await dbDel('programs',pid);render();toast('Deleted');
+}
+
+// ── Phase CRUD ────────────────────────────────────────────────────────────────
+function showAddPhase(pid){
+  showModal(`<div class="mtitle">New Phase</div>
+    <div class="fr"><label>Name</label><input id="f0" placeholder="e.g. Phase 1 — Foundation" autofocus></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="addPhase('${pid}')">Add</button>
+    </div>`);
+}
+async function addPhase(pid){
+  const n=document.getElementById('f0').value.trim();if(!n){toast('Enter a name');return;}
+  const p=await dbGet('programs',pid);p.phases=p.phases||[];p.phases.push({id:uid(),name:n,weeks:[]});
+  await dbPut('programs',p);closeModal();render();toast('Phase added');
+}
+async function deletePhase(pid,phid){
+  if(!confirm('Delete this phase and all its weeks?'))return;
+  const p=await dbGet('programs',pid);p.phases=(p.phases||[]).filter(x=>x.id!==phid);
+  await dbPut('programs',p);render();toast('Deleted');
+}
+
+// ── Week CRUD ─────────────────────────────────────────────────────────────────
+function showAddWeek(pid,phid){
+  showModal(`<div class="mtitle">New Week</div>
+    <div class="fr"><label>Name</label><input id="f0" placeholder="e.g. Week 1" autofocus></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="addWeek('${pid}','${phid}')">Add</button>
+    </div>`);
+}
+async function addWeek(pid,phid){
+  const n=document.getElementById('f0').value.trim();if(!n){toast('Enter a name');return;}
+  const p=await dbGet('programs',pid);const ph=(p.phases||[]).find(x=>x.id===phid);
+  ph.weeks=ph.weeks||[];ph.weeks.push({id:uid(),name:n,days:[]});
+  await dbPut('programs',p);closeModal();render();toast('Week added');
+}
+async function deleteWeek(pid,phid,wid){
+  if(!confirm('Delete this week?'))return;
+  const p=await dbGet('programs',pid);const ph=(p.phases||[]).find(x=>x.id===phid);
+  ph.weeks=(ph.weeks||[]).filter(x=>x.id!==wid);
+  await dbPut('programs',p);render();toast('Deleted');
+}
+
+// ── Day CRUD ──────────────────────────────────────────────────────────────────
+function showAddDay(pid,phid,wid){
+  showModal(`<div class="mtitle">New Day</div>
+    <div class="fr"><label>Name</label><input id="f0" placeholder="e.g. Day 1 — Push" autofocus></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="addDay('${pid}','${phid}','${wid}')">Add</button>
+    </div>`);
+}
+async function addDay(pid,phid,wid){
+  const n=document.getElementById('f0').value.trim();if(!n){toast('Enter a name');return;}
+  const p=await dbGet('programs',pid);const ph=(p.phases||[]).find(x=>x.id===phid);const w=(ph.weeks||[]).find(x=>x.id===wid);
+  w.days=w.days||[];w.days.push({id:uid(),name:n,exercises:[]});
+  await dbPut('programs',p);closeModal();render();toast('Day added');
+}
+async function deleteDay(pid,phid,wid,did){
+  if(!confirm('Delete this day?'))return;
+  const p=await dbGet('programs',pid);const ph=(p.phases||[]).find(x=>x.id===phid);const w=(ph.weeks||[]).find(x=>x.id===wid);
+  w.days=(w.days||[]).filter(x=>x.id!==did);
+  await dbPut('programs',p);render();toast('Deleted');
+}
+
+// ── Exercise in day ───────────────────────────────────────────────────────────
+async function showAddExToDay(pid,phid,wid,did){
+  const list=sortAlpha(await dbGetAll('exercises'));
+  const opts=list.map(e=>`<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('');
+  showModal(`<div class="mtitle">Add Exercise</div>
+    <div class="fr"><label>From Library</label>
+      <select id="flib" onchange="onLibSel(this)"><option value="">— Custom (no link) —</option>${opts}</select>
+    </div>
+    <div class="fr" id="fcrow"><label>Custom name</label><input id="fcname" placeholder="Exercise name"></div>
+    <div class="fg3">
+      <div class="fr"><label>Sets</label><input id="fsets" type="number" min="1" value="3"></div>
+      <div class="fr"><label>Reps</label><input id="freps" type="number" min="1" value="10"></div>
+      <div class="fr"><label>Weight</label><input id="fwt" type="number" min="0" step="0.5" value="0"></div>
+    </div>
+    <div class="fr"><label>Unit</label><select id="funit"><option>kg</option><option>lbs</option><option>bodyweight</option></select></div>
+    <div class="fr"><label>Notes (optional)</label><input id="fnotes" placeholder="e.g. tempo 3-1-3"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="addExToDay('${pid}','${phid}','${wid}','${did}')">Add</button>
+    </div>`);
+}
+async function onLibSel(sel){
+  document.getElementById('fcrow').style.display=sel.value?'none':'';
+  if(sel.value){
+    const logs=await dbIdx('weight_log','exerciseId',sel.value);
+    if(logs.length){logs.sort((a,b)=>new Date(b.date)-new Date(a.date));document.getElementById('fwt').value=logs[0].weight;document.getElementById('funit').value=logs[0].unit||'kg';}
+  }
+}
+async function addExToDay(pid,phid,wid,did){
+  const libId=document.getElementById('flib').value;
+  const cn=document.getElementById('fcname').value.trim();
+  if(!libId&&!cn){toast('Pick from library or enter a name');return;}
+  const sets=document.getElementById('fsets').value,reps=document.getElementById('freps').value;
+  const wt=document.getElementById('fwt').value,unit=document.getElementById('funit').value;
+  const notes=document.getElementById('fnotes').value.trim();
+  const p=await dbGet('programs',pid);const ph=(p.phases||[]).find(x=>x.id===phid);
+  const w=(ph.weeks||[]).find(x=>x.id===wid);
+  const dayIdx=(w.days||[]).findIndex(x=>x.id===did);
+  // syncId ties this exercise across all weeks in the phase
+  const syncId=uid();
+  const baseEx={libraryId:libId||null,name:libId?'':cn,sets,reps,weight:wt,unit,notes,syncId};
+  let weeksUpdated=0;
+  (ph.weeks||[]).forEach(week=>{
+    const day=(week.days||[])[dayIdx];
+    if(!day) return;
+    day.exercises=day.exercises||[];
+    day.exercises.push({id:uid(),...baseEx});
+    weeksUpdated++;
+  });
+  if(libId&&parseFloat(wt)>0) await dbPut('weight_log',{exerciseId:libId,weight:parseFloat(wt),unit,date:new Date().toISOString()});
+  await dbPut('programs',p);closeModal();render();
+  toast(weeksUpdated>1?`Added to all ${weeksUpdated} weeks`:'Exercise added');
+}
+async function showEditEx(pid,phid,wid,did,exid){
+  const p=await dbGet('programs',pid);const ph=(p.phases||[]).find(x=>x.id===phid);const w=(ph.weeks||[]).find(x=>x.id===wid);const d=(w.days||[]).find(x=>x.id===did);
+  const ex=(d.exercises||[]).find(x=>x.id===exid);if(!ex)return;
+  const list=sortAlpha(await dbGetAll('exercises'));
+  const opts=list.map(e=>`<option value="${esc(e.id)}" ${ex.libraryId===e.id?'selected':''}>${esc(e.name)}</option>`).join('');
+  showModal(`<div class="mtitle">Edit Exercise</div>
+    <div class="fr"><label>Library link</label><select id="flib"><option value="">— none —</option>${opts}</select></div>
+    <div class="fr"><label>Custom name</label><input id="fcname" value="${esc(ex.name||'')}"></div>
+    <div class="fg3">
+      <div class="fr"><label>Sets</label><input id="fsets" type="number" value="${esc(ex.sets||3)}"></div>
+      <div class="fr"><label>Reps</label><input id="freps" type="number" value="${esc(ex.reps||10)}"></div>
+      <div class="fr"><label>Weight</label><input id="fwt" type="number" step="0.5" value="${esc(ex.weight||0)}"></div>
+    </div>
+    <div class="fr"><label>Unit</label><select id="funit"><option ${ex.unit==='kg'?'selected':''}>kg</option><option ${ex.unit==='lbs'?'selected':''}>lbs</option><option ${ex.unit==='bodyweight'?'selected':''}>bodyweight</option></select></div>
+    <div class="fr"><label>Notes</label><input id="fnotes" value="${esc(ex.notes||'')}"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="saveEditEx('${pid}','${phid}','${wid}','${did}','${exid}')">Save</button>
+    </div>`);
+}
+async function saveEditEx(pid,phid,wid,did,exid){
+  const p=await dbGet('programs',pid);const ph=(p.phases||[]).find(x=>x.id===phid);const w=(ph.weeks||[]).find(x=>x.id===wid);const d=(w.days||[]).find(x=>x.id===did);
+  const ex=(d.exercises||[]).find(x=>x.id===exid);
+  const libId=document.getElementById('flib').value;const oldW=ex.weight;
+  ex.libraryId=libId||null;ex.name=libId?'':document.getElementById('fcname').value.trim();
+  ex.sets=document.getElementById('fsets').value;ex.reps=document.getElementById('freps').value;
+  ex.weight=document.getElementById('fwt').value;ex.unit=document.getElementById('funit').value;
+  ex.notes=document.getElementById('fnotes').value.trim();
+  // Edits are intentionally local to this week — they record actual performance,
+  // not template changes. Only add/delete propagate across all weeks.
+  if(libId&&parseFloat(ex.weight)>0&&parseFloat(ex.weight)!==parseFloat(oldW))
+    await dbPut('weight_log',{exerciseId:libId,weight:parseFloat(ex.weight),unit:ex.unit,date:new Date().toISOString()});
+  await dbPut('programs',p);closeModal();render();toast('Saved');
+}
+async function deleteEx(pid,phid,wid,did,exid){
+  const p=await dbGet('programs',pid);const ph=(p.phases||[]).find(x=>x.id===phid);const w=(ph.weeks||[]).find(x=>x.id===wid);const d=(w.days||[]).find(x=>x.id===did);
+  const ex=(d.exercises||[]).find(x=>x.id===exid);
+  const syncId=ex?.syncId;
+  const msg=syncId?'Remove this exercise from all weeks in this phase?':'Remove this exercise?';
+  if(!confirm(msg))return;
+  d.exercises=(d.exercises||[]).filter(x=>x.id!==exid);
+  // Remove from all other weeks in this phase if synced
+  if(syncId){
+    const dayIdx=(w.days||[]).findIndex(x=>x.id===did);
+    (ph.weeks||[]).forEach(week=>{
+      if(week.id===wid) return;
+      const day=(week.days||[])[dayIdx]; if(!day) return;
+      day.exercises=(day.exercises||[]).filter(e=>e.syncId!==syncId);
+    });
+  }
+  await dbPut('programs',p);render();toast('Removed');
+}
+
+// ── Library CRUD ──────────────────────────────────────────────────────────────
+const CATS=['Cardio','Calisthenics','Full Body','Olympic','Strength','Other'];
+const MUSCLES=['Back / Lats','Back','Biceps','Calves','Cardio','Chest','Chest / Triceps','Core','Core / Hip Flexors','Full Body','Hamstrings','Hamstrings / Glutes','Obliques','Obliques / Core','Posterior Chain','Quads','Quads / Glutes','Rear Delts','Shoulders','Traps / Shoulders','Triceps','Other'];
+
+function showAddExercise(){
+  showModal(`<div class="mtitle">New Exercise</div>
+    <div class="fr"><label>Name</label><input id="f0" placeholder="e.g. Kettlebell Swings" autofocus></div>
+    <div class="fg2">
+      <div class="fr"><label>Category</label><select id="f1"><option value="">Select…</option>${CATS.map(c=>`<option>${c}</option>`).join('')}</select></div>
+      <div class="fr"><label>Muscle group</label><select id="f2"><option value="">Select…</option>${MUSCLES.map(m=>`<option>${m}</option>`).join('')}</select></div>
+    </div>
+    <div class="fr"><label>Notes</label><input id="f3" placeholder="Optional"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-s" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p" style="flex:1" onclick="addExercise()">Create</button>
+    </div>`);
+}
+async function addExercise(){
+  const n=document.getElementById('f0').value.trim();if(!n){toast('Enter a name');return;}
+  await dbPut('exercises',{id:uid(),name:n,category:document.getElementById('f1').value,muscleGroup:document.getElementById('f2').value,notes:document.getElementById('f3').value.trim()});
+  closeModal();render();toast('Added to library');
+}
+async function showExDetail(exid){
+  const ex=await dbGet('exercises',exid);
+  const logs=await dbIdx('weight_log','exerciseId',exid);
+  logs.sort((a,b)=>new Date(b.date)-new Date(a.date));
+  const catOpts=CATS.map(c=>`<option ${ex.category===c?'selected':''}>${c}</option>`).join('');
+  const musOpts=MUSCLES.map(m=>`<option ${ex.muscleGroup===m?'selected':''}>${m}</option>`).join('');
+  const hist=logs.length?logs.slice(0,5).map(l=>`<div class="hist-row"><div style="font-size:13px;color:var(--text2)">${new Date(l.date).toLocaleDateString('en-GB',{day:'numeric',month:'short'})}</div><div style="font-size:15px;font-weight:700">${l.weight} <span style="font-size:11px;color:var(--text2);font-weight:400">${l.unit||'kg'}</span></div></div>`).join(''):`<div style="font-size:13px;color:var(--text3);padding:10px 0">No weight history yet</div>`;
+  showModal(`<div class="mtitle">Edit Exercise</div>
+    <div class="fr"><label>Name</label><input id="f0" value="${esc(ex.name)}"></div>
+    <div class="fg2">
+      <div class="fr"><label>Category</label><select id="f1"><option value="">Select…</option>${catOpts}</select></div>
+      <div class="fr"><label>Muscle</label><select id="f2"><option value="">Select…</option>${musOpts}</select></div>
+    </div>
+    <div class="fr"><label>Notes</label><input id="f3" value="${esc(ex.notes||'')}"></div>
+    <div class="divider"></div>
+    <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.9px;color:var(--text3);margin-bottom:10px">Weight History</div>
+    ${hist}
+    <div class="divider"></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-d btn-sm" onclick="deleteLibEx('${exid}')">Delete</button>
+      <button class="btn btn-s btn-sm" style="flex:1" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-p btn-sm" style="flex:1" onclick="saveLibEx('${exid}')">Save</button>
+    </div>`);
+}
+async function saveLibEx(id){
+  const ex=await dbGet('exercises',id);
+  ex.name=document.getElementById('f0').value.trim()||ex.name;
+  ex.category=document.getElementById('f1').value;
+  ex.muscleGroup=document.getElementById('f2').value;
+  ex.notes=document.getElementById('f3').value.trim();
+  await dbPut('exercises',ex);closeModal();render();toast('Saved');
+}
+async function deleteLibEx(id){
+  if(!confirm('Delete this exercise from the library?'))return;
+  await dbDel('exercises',id);closeModal();render();toast('Deleted');
+}
+
+// ── Nav helpers ───────────────────────────────────────────────────────────────
+function openProgram(id){dbGet('programs',id).then(p=>{nav=[{id,label:p.name}];render();});}
+function openPhase(pid,phid){dbGet('programs',pid).then(p=>{const ph=(p.phases||[]).find(x=>x.id===phid);nav=[{id:pid,label:p.name},{id:phid,label:ph?.name||'Phase'}];render();});}
+function openWeek(pid,phid,wid){dbGet('programs',pid).then(p=>{const ph=(p.phases||[]).find(x=>x.id===phid);const w=(ph.weeks||[]).find(x=>x.id===wid);nav=[{id:pid,label:p.name},{id:phid,label:ph?.name||'Phase'},{id:wid,label:w?.name||'Week'}];render();});}
+function openDay(pid,phid,wid,did){dbGet('programs',pid).then(p=>{const ph=(p.phases||[]).find(x=>x.id===phid);const w=(ph.weeks||[]).find(x=>x.id===wid);const d=(w.days||[]).find(x=>x.id===did);nav=[{id:pid,label:p.name},{id:phid,label:ph?.name||'Phase'},{id:wid,label:w?.name||'Week'},{id:did,label:d?.name||'Day'}];render();});}
+
+// ── Empty state ───────────────────────────────────────────────────────────────
+function empty(svg,msg){return `<div class="pad"><div class="empty">${svg}<p>${msg}</p></div></div>`;}
+
+// ── Boot ──────────────────────────────────────────────────────────────────────
+openDB().then(async()=>{ await seedLibrary(); render(); });
+</script>
+</body>
+</html>
