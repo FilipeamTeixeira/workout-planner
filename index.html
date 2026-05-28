@@ -124,6 +124,10 @@
   .stat-lbl { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.7px; color: var(--text3); margin-bottom: 6px; }
   .hist-row { display: flex; justify-content: space-between; align-items: center; padding: 11px 0; border-bottom: 1px solid var(--border); }
   .hist-row:last-child { border-bottom: none; }
+  /* ── Unit pills ──────────────────────────────────────────── */
+  .unit-pills { display: flex; gap: 6px; flex-wrap: wrap; }
+  .unit-pill { padding: 9px 14px; border-radius: 20px; border: 1.5px solid var(--border); background: var(--surface2); color: var(--text2); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: background 0.12s, color 0.12s, border-color 0.12s; }
+  .unit-pill.active { background: var(--accent); color: #fff; border-color: var(--accent); }
 
   /* ── Breadcrumb ──────────────────────────────────────── */
   .bc { font-size: 12px; color: var(--text2); margin-bottom: 14px; display: flex; align-items: center; gap: 5px; font-weight: 600; flex-wrap: wrap; }
@@ -267,6 +271,14 @@ const uid  = () => Date.now().toString(36)+Math.random().toString(36).slice(2);
 const esc  = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 const sortAlpha = arr => [...arr].sort((a,b) => a.name.localeCompare(b.name));
 
+function setUnit(val) {
+  const inp = document.getElementById('funit'); if (inp) inp.value = val;
+  document.querySelectorAll('.unit-pill').forEach(b => b.classList.toggle('active', b.dataset.unit === val));
+  const wtRow = document.getElementById('fwt-row'); if (!wtRow) return;
+  const lbl   = document.getElementById('fwt-lbl'); if (lbl) lbl.textContent = (val==='sec'||val==='min') ? 'Duration' : 'Weight';
+  wtRow.style.display = val === 'bodyweight' ? 'none' : '';
+}
+
 function toast(msg) {
   const t = document.getElementById('toast');
   t.textContent = msg; t.classList.add('show');
@@ -328,7 +340,7 @@ async function render() {
     else if (nav.length===3) { right.innerHTML=`<button class="hdr-btn" onclick="showAddDay('${nav[0].id}','${nav[1].id}','${nav[2].id}')">+ Day</button>`; main.innerHTML=await renderWeek(nav[0].id,nav[1].id,nav[2].id); }
     else if (nav.length===4) { right.innerHTML=`<button class="hdr-btn" onclick="showAddExToDay('${nav[0].id}','${nav[1].id}','${nav[2].id}','${nav[3].id}')">+ Exercise</button>`; main.innerHTML=await renderDay(nav[0].id,nav[1].id,nav[2].id,nav[3].id); }
   } else if (currentTab==='library')  { right.innerHTML=`<button class="hdr-btn" onclick="showAddExercise()">+ New</button>`; main.innerHTML=await renderLibrary(); }
-  else if (currentTab==='progress')   { main.innerHTML=await renderProgress(); }
+  else if (currentTab==='progress')   { main.innerHTML=await renderProgress(); loadChart('__overview__'); }
   else if (currentTab==='data')       { main.innerHTML=await renderData(); }
 }
 
@@ -465,7 +477,10 @@ async function renderDay(pid,phid,wid,did) {
           <div class="ex-stats">
             <span class="sp"><strong>${ex.sets||'—'}</strong> sets</span>
             <span class="sp"><strong>${ex.reps||'—'}</strong> reps</span>
-            <span class="sp"><strong>${ex.weight||'—'}</strong> ${esc(ex.unit||'kg')}</span>
+            ${ex.unit==='bodyweight'
+              ? `<span class="sp">Bodyweight</span>`
+              : `<span class="sp"><strong>${ex.weight||'—'}</strong> ${esc(ex.unit||'kg')}</span>`
+            }
           </div>
           ${ex.notes?`<div style="font-size:12px;color:var(--text2);margin-top:7px">${esc(ex.notes)}</div>`:''}
         </div>
@@ -502,7 +517,8 @@ async function renderProgress() {
   if (!list.length) return empty(`<svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>`,'Add exercises to your library to track progress.');
   return `<div class="pad">
     <select id="prog-sel" onchange="loadChart(this.value)">
-      <option value="">Select an exercise…</option>
+      <option value="__overview__">Overview — all exercises</option>
+      <option value="" disabled style="color:var(--text3)">──────────────────</option>
       ${list.map(e=>`<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('')}
     </select>
     <div id="chart-area" style="margin-top:20px"></div>
@@ -511,7 +527,8 @@ async function renderProgress() {
 
 async function loadChart(exId) {
   const area=document.getElementById('chart-area');
-  if (!exId){area.innerHTML='';return;}
+  if (!area) return;
+  if (!exId || exId==='__overview__') { await loadOverview(); return; }
   const logs=await dbIdx('weight_log','exerciseId',exId);
   logs.sort((a,b)=>new Date(a.date)-new Date(b.date));
   if (!logs.length){area.innerHTML=`<div style="text-align:center;color:var(--text2);padding:40px;font-size:14px">No weight data recorded yet.</div>`;return;}
@@ -565,6 +582,45 @@ async function loadChart(exId) {
     const step=Math.max(1,Math.floor(logs.length/5));
     logs.forEach((l,i)=>{ if(i%step===0||i===logs.length-1){const d=new Date(l.date);ctx.fillText(`${d.getDate()}/${d.getMonth()+1}`,toX(i),H-6);} });
   });
+}
+
+async function loadOverview() {
+  const area = document.getElementById('chart-area'); if (!area) return;
+  const allLogs = await dbGetAll('weight_log');
+  const allEx   = await dbGetAll('exercises');
+  if (!allLogs.length) {
+    area.innerHTML=`<div style="text-align:center;color:var(--text2);padding:40px 0;font-size:14px">No data logged yet.<br>Edit an exercise in a workout to start tracking.</div>`;
+    return;
+  }
+  const exMap = Object.fromEntries(allEx.map(e=>[e.id,e]));
+  const grouped = {};
+  allLogs.forEach(l=>{if(!grouped[l.exerciseId])grouped[l.exerciseId]=[];grouped[l.exerciseId].push(l);});
+  Object.values(grouped).forEach(arr=>arr.sort((a,b)=>new Date(a.date)-new Date(b.date)));
+  const tracked = Object.keys(grouped).length;
+  const rows = Object.entries(grouped).map(([exId,logs])=>{
+    const ex=exMap[exId]; if(!ex) return '';
+    const first=parseFloat(logs[0].weight), latest=parseFloat(logs[logs.length-1].weight);
+    const unit=logs[logs.length-1].unit||'kg';
+    const pct=first>0?((latest-first)/first*100):0;
+    const trend=pct>0.5?`<span style="color:var(--accent);font-weight:700;font-size:13px">↑ ${pct.toFixed(1)}%</span>`
+               :pct<-0.5?`<span style="color:var(--red);font-weight:700;font-size:13px">↓ ${Math.abs(pct).toFixed(1)}%</span>`
+               :`<span style="color:var(--text3);font-size:13px">→</span>`;
+    return `<div class="hist-row" style="cursor:pointer" onclick="document.getElementById('prog-sel').value='${exId}';loadChart('${exId}')">
+      <div style="min-width:0;flex:1"><div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(ex.name)}</div>
+      <div style="font-size:12px;color:var(--text2)">${logs.length} session${logs.length!==1?'s':''}</div></div>
+      <div style="text-align:right;flex-shrink:0;margin-left:12px">
+        <div style="font-size:16px;font-weight:700">${latest} <span style="font-size:11px;color:var(--text2);font-weight:400">${unit}</span></div>
+        <div>${trend}</div>
+      </div>
+    </div>`;
+  }).join('');
+  area.innerHTML=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <div class="card stat-card"><div class="stat-lbl">Tracked</div><div class="stat-val" style="color:var(--accent)">${tracked}</div></div>
+      <div class="card stat-card"><div class="stat-lbl">Sessions</div><div class="stat-val">${allLogs.length}</div></div>
+    </div>
+    <div class="sec" style="margin-top:0">Exercise Progress</div>
+    <div class="card" style="padding:4px 16px">${rows||'<div style="padding:16px;color:var(--text2);font-size:13px">No exercises tracked yet.</div>'}</div>`;
 }
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -777,9 +833,18 @@ async function showAddExToDay(pid,phid,wid,did){
     <div class="fg3">
       <div class="fr"><label>Sets</label><input id="fsets" type="number" min="1" value="3"></div>
       <div class="fr"><label>Reps</label><input id="freps" type="number" min="1" value="10"></div>
-      <div class="fr"><label>Weight</label><input id="fwt" type="number" min="0" step="0.5" value="0"></div>
+      <div class="fr" id="fwt-row"><label id="fwt-lbl">Weight</label><input id="fwt" type="number" min="0" step="0.5" value="0"></div>
     </div>
-    <div class="fr"><label>Unit</label><select id="funit"><option>kg</option><option>lbs</option><option>bodyweight</option></select></div>
+    <div class="fr"><label>Unit</label>
+      <div class="unit-pills">
+        <button type="button" class="unit-pill active" data-unit="kg" onclick="setUnit('kg')">kg</button>
+        <button type="button" class="unit-pill" data-unit="lbs" onclick="setUnit('lbs')">lbs</button>
+        <button type="button" class="unit-pill" data-unit="bodyweight" onclick="setUnit('bodyweight')">BW</button>
+        <button type="button" class="unit-pill" data-unit="sec" onclick="setUnit('sec')">sec</button>
+        <button type="button" class="unit-pill" data-unit="min" onclick="setUnit('min')">min</button>
+      </div>
+      <input type="hidden" id="funit" value="kg">
+    </div>
     <div class="fr"><label>Notes (optional)</label><input id="fnotes" placeholder="e.g. tempo 3-1-3"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-s" style="flex:1" onclick="closeModal()">Cancel</button>
@@ -790,7 +855,12 @@ async function onLibSel(sel){
   document.getElementById('fcrow').style.display=sel.value?'none':'';
   if(sel.value){
     const logs=await dbIdx('weight_log','exerciseId',sel.value);
-    if(logs.length){logs.sort((a,b)=>new Date(b.date)-new Date(a.date));document.getElementById('fwt').value=logs[0].weight;document.getElementById('funit').value=logs[0].unit||'kg';}
+    if(logs.length){
+      logs.sort((a,b)=>new Date(b.date)-new Date(a.date));
+      const l=logs[0];
+      document.getElementById('fwt').value=l.weight;
+      setUnit(l.unit||'kg');
+    }
   }
 }
 async function addExToDay(pid,phid,wid,did){
@@ -829,14 +899,25 @@ async function showEditEx(pid,phid,wid,did,exid){
     <div class="fg3">
       <div class="fr"><label>Sets</label><input id="fsets" type="number" value="${esc(ex.sets||3)}"></div>
       <div class="fr"><label>Reps</label><input id="freps" type="number" value="${esc(ex.reps||10)}"></div>
-      <div class="fr"><label>Weight</label><input id="fwt" type="number" step="0.5" value="${esc(ex.weight||0)}"></div>
+      <div class="fr" id="fwt-row"><label id="fwt-lbl">Weight</label><input id="fwt" type="number" step="0.5" value="${esc(ex.weight||0)}"></div>
     </div>
-    <div class="fr"><label>Unit</label><select id="funit"><option ${ex.unit==='kg'?'selected':''}>kg</option><option ${ex.unit==='lbs'?'selected':''}>lbs</option><option ${ex.unit==='bodyweight'?'selected':''}>bodyweight</option></select></div>
+    <div class="fr"><label>Unit</label>
+      <div class="unit-pills">
+        <button type="button" class="unit-pill" data-unit="kg" onclick="setUnit('kg')">kg</button>
+        <button type="button" class="unit-pill" data-unit="lbs" onclick="setUnit('lbs')">lbs</button>
+        <button type="button" class="unit-pill" data-unit="bodyweight" onclick="setUnit('bodyweight')">BW</button>
+        <button type="button" class="unit-pill" data-unit="sec" onclick="setUnit('sec')">sec</button>
+        <button type="button" class="unit-pill" data-unit="min" onclick="setUnit('min')">min</button>
+      </div>
+      <input type="hidden" id="funit" value="${esc(ex.unit||'kg')}">
+    </div>
     <div class="fr"><label>Notes</label><input id="fnotes" value="${esc(ex.notes||'')}"></div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-s" style="flex:1" onclick="closeModal()">Cancel</button>
       <button class="btn btn-p" style="flex:1" onclick="saveEditEx('${pid}','${phid}','${wid}','${did}','${exid}')">Save</button>
     </div>`);
+  // initialise pills and weight-field visibility to current unit
+  requestAnimationFrame(()=>setUnit(ex.unit||'kg'));
 }
 async function saveEditEx(pid,phid,wid,did,exid){
   const p=await dbGet('programs',pid);const ph=(p.phases||[]).find(x=>x.id===phid);const w=(ph.weeks||[]).find(x=>x.id===wid);const d=(w.days||[]).find(x=>x.id===did);
