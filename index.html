@@ -166,7 +166,7 @@
 
 <script>
 // ── Default exercise library ──────────────────────────────────────────────────
-const APP_VERSION = '3'; // bump this before every deploy to trigger the update banner
+const APP_VERSION = '4'; // bump this before every deploy to trigger the update banner
 const DEFAULT_EXERCISES = [
   // Chest
   {name:'Barbell Bench Press',   category:'Strength',  muscleGroup:'Chest'},
@@ -550,16 +550,25 @@ async function loadChart(exId) {
   const logs=await dbIdx('weight_log','exerciseId',exId);
   logs.sort((a,b)=>new Date(a.date)-new Date(b.date));
   if (!logs.length){area.innerHTML=`<div style="text-align:center;color:var(--text2);padding:40px;font-size:14px">No weight data recorded yet.</div>`;return;}
-  const latest=logs[logs.length-1]; const best=Math.max(...logs.map(l=>l.weight));
+  const unit=logs[logs.length-1].unit||'kg';
+  const label=metricLabel(unit);
+  const vals=logs.map(l=>est1RM(l.weight,l.reps,l.unit||unit));
+  const latestVal=vals[vals.length-1], bestVal=Math.max(...vals);
   area.innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
-      <div class="card stat-card"><div class="stat-lbl">Latest</div><div class="stat-val" style="color:var(--accent)">${latest.weight}</div><div style="font-size:12px;color:var(--text2)">${latest.unit||'kg'}</div></div>
-      <div class="card stat-card"><div class="stat-lbl">Best</div><div class="stat-val">${best}</div><div style="font-size:12px;color:var(--text2)">${logs.find(l=>l.weight===best)?.unit||'kg'}</div></div>
+      <div class="card stat-card"><div class="stat-lbl">Latest</div><div class="stat-val" style="color:var(--accent)">${latestVal}</div><div style="font-size:12px;color:var(--text2)">${label}</div></div>
+      <div class="card stat-card"><div class="stat-lbl">Best</div><div class="stat-val">${bestVal}</div><div style="font-size:12px;color:var(--text2)">${label}</div></div>
     </div>
     <div class="card" style="padding:16px;margin-bottom:12px"><canvas id="prog-c" height="180"></canvas></div>
     <div class="sec">History</div>
     <div class="card" style="padding:4px 16px">
-      ${logs.slice().reverse().map(l=>`<div class="hist-row"><div style="font-size:13px;color:var(--text2)">${new Date(l.date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</div><div style="font-size:16px;font-weight:700">${l.weight} <span style="font-size:12px;color:var(--text2);font-weight:400">${l.unit||'kg'}</span></div></div>`).join('')}
+      ${logs.slice().reverse().map(l=>{
+        const e=est1RM(l.weight,l.reps,l.unit||unit);
+        const isBW=unit==='bodyweight', isTimed=unit==='sec'||unit==='min';
+        const rawStr=isBW?`${l.reps||0} reps`:isTimed?`${l.weight} ${l.unit||unit}`:`${l.weight}${l.reps?` × ${l.reps}r`:''} ${l.unit||unit}`;
+        const e1Str=(!isBW&&!isTimed&&l.reps&&l.reps>1)?`${e} e1RM`:'';
+        return `<div class="hist-row"><div style="font-size:13px;color:var(--text2)">${new Date(l.date).toLocaleDateString('en-GB',{day:'numeric',month:'short',year:'numeric'})}</div><div style="display:flex;align-items:center;gap:8px"><div style="text-align:right"><div style="font-size:16px;font-weight:700">${rawStr}</div>${e1Str?`<div style="font-size:12px;color:var(--text2)">${e1Str}</div>`:''}</div><button class="ibtn" style="background:var(--red-l);color:var(--red);flex-shrink:0" onclick="deleteLog(${l.id},'${exId}')">${trashSVG}</button></div></div>`;
+      }).join('')}
     </div>`;
   requestAnimationFrame(()=>{
     const canvas=document.getElementById('prog-c'); if(!canvas)return;
@@ -567,7 +576,6 @@ async function loadChart(exId) {
     const W=canvas.offsetWidth,H=180;
     canvas.width=W*dpr; canvas.height=H*dpr; ctx.scale(dpr,dpr);
     const p={t:14,r:14,b:28,l:40};
-    const vals=logs.map(l=>parseFloat(l.weight));
     const minV=Math.min(...vals)*0.94, maxV=Math.max(...vals)*1.06, rng=maxV-minV||1;
     const toX=i=>p.l+(i/(logs.length-1||1))*(W-p.l-p.r);
     const toY=v=>p.t+(1-(v-minV)/rng)*(H-p.t-p.b);
@@ -580,6 +588,9 @@ async function loadChart(exId) {
       ctx.fillStyle='#b5b2aa';ctx.font=`10px -apple-system`;ctx.textAlign='right';
       ctx.fillText((minV+((1-f)*rng)).toFixed(1),p.l-4,y+3);
     });
+    // Y-axis label
+    ctx.save(); ctx.fillStyle='#b5b2aa'; ctx.font=`9px -apple-system`; ctx.textAlign='center';
+    ctx.translate(9,p.t+(H-p.t-p.b)/2); ctx.rotate(-Math.PI/2); ctx.fillText(label,0,0); ctx.restore();
     // Area
     const grad=ctx.createLinearGradient(0,p.t,0,H-p.b);
     grad.addColorStop(0,'rgba(224,92,26,0.12)'); grad.addColorStop(1,'rgba(224,92,26,0)');
@@ -602,6 +613,12 @@ async function loadChart(exId) {
   });
 }
 
+async function deleteLog(id, exId) {
+  if (!confirm('Delete this log entry?')) return;
+  await dbDel('weight_log', id);
+  loadChart(exId);
+}
+
 async function loadOverview() {
   const area = document.getElementById('chart-area'); if (!area) return;
   const allLogs = await dbGetAll('weight_log');
@@ -617,9 +634,11 @@ async function loadOverview() {
   const tracked = Object.keys(grouped).length;
   const rows = Object.entries(grouped).map(([exId,logs])=>{
     const ex=exMap[exId]; if(!ex) return '';
-    const first=parseFloat(logs[0].weight), latest=parseFloat(logs[logs.length-1].weight);
     const unit=logs[logs.length-1].unit||'kg';
-    const pct=first>0?((latest-first)/first*100):0;
+    const firstE=est1RM(logs[0].weight,logs[0].reps,logs[0].unit||unit);
+    const latestE=est1RM(logs[logs.length-1].weight,logs[logs.length-1].reps,unit);
+    const label=metricLabel(unit);
+    const pct=firstE>0?((latestE-firstE)/firstE*100):0;
     const trend=pct>0.5?`<span style="color:var(--accent);font-weight:700;font-size:13px">↑ ${pct.toFixed(1)}%</span>`
                :pct<-0.5?`<span style="color:var(--red);font-weight:700;font-size:13px">↓ ${Math.abs(pct).toFixed(1)}%</span>`
                :`<span style="color:var(--text3);font-size:13px">→</span>`;
@@ -627,7 +646,7 @@ async function loadOverview() {
       <div style="min-width:0;flex:1"><div style="font-size:14px;font-weight:700;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${esc(ex.name)}</div>
       <div style="font-size:12px;color:var(--text2)">${logs.length} session${logs.length!==1?'s':''}</div></div>
       <div style="text-align:right;flex-shrink:0;margin-left:12px">
-        <div style="font-size:16px;font-weight:700">${latest} <span style="font-size:11px;color:var(--text2);font-weight:400">${unit}</span></div>
+        <div style="font-size:16px;font-weight:700">${latestE} <span style="font-size:11px;color:var(--text2);font-weight:400">${label}</span></div>
         <div>${trend}</div>
       </div>
     </div>`;
@@ -902,7 +921,8 @@ async function addExToDay(pid,phid,wid,did){
     day.exercises.push({id:uid(),...baseEx});
     weeksUpdated++;
   });
-  if(libId&&parseFloat(wt)>0) await dbPut('weight_log',{exerciseId:libId,weight:parseFloat(wt),unit,date:new Date().toISOString()});
+  const repsN=parseInt(reps)||0,setsN=parseInt(sets)||0;
+  if(libId&&(parseFloat(wt)>0||repsN>0)) await dbPut('weight_log',{exerciseId:libId,weight:parseFloat(wt)||0,reps:repsN,sets:setsN,unit,date:new Date().toISOString()});
   await dbPut('programs',p);closeModal();render();
   toast(weeksUpdated>1?`Added to all ${weeksUpdated} weeks`:'Exercise added');
 }
@@ -947,8 +967,9 @@ async function saveEditEx(pid,phid,wid,did,exid){
   ex.notes=document.getElementById('fnotes').value.trim();
   // Edits are intentionally local to this week — they record actual performance,
   // not template changes. Only add/delete propagate across all weeks.
-  if(libId&&parseFloat(ex.weight)>0&&parseFloat(ex.weight)!==parseFloat(oldW))
-    await dbPut('weight_log',{exerciseId:libId,weight:parseFloat(ex.weight),unit:ex.unit,date:new Date().toISOString()});
+  const repsN=parseInt(ex.reps)||0,setsN=parseInt(ex.sets)||0;
+  if(libId&&(parseFloat(ex.weight)>0||repsN>0))
+    await dbPut('weight_log',{exerciseId:libId,weight:parseFloat(ex.weight)||0,reps:repsN,sets:setsN,unit:ex.unit,date:new Date().toISOString()});
   await dbPut('programs',p);closeModal();render();toast('Saved');
 }
 async function deleteEx(pid,phid,wid,did,exid){
