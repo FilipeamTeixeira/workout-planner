@@ -283,13 +283,14 @@ function setUnit(val) {
 // ── Performance index ─────────────────────────────────────────────────────────
 // Epley 1RM formula. For bodyweight returns reps; for timed returns duration.
 // Old log entries without reps fall back to raw weight gracefully.
-function est1RM(weight, reps, unit) {
+function est1RM(weight, reps, unit, sets) {
   const w = parseFloat(weight) || 0;
   const r = parseInt(reps)    || 0;
-  if (unit === 'bodyweight') return r || w;
-  if (unit === 'sec' || unit === 'min') return w;
-  if (!r || r === 1) return w;
-  return Math.round(w * (1 + r / 30) * 10) / 10; // Epley
+  const s = parseInt(sets)    || 1;   // ← add this
+  if (unit === 'bodyweight') return (r || w) * s;
+  if (unit === 'sec' || unit === 'min') return w * s;
+  if (!r || r === 1) return w * s;
+  return Math.round(w * (1 + r / 30) * 10) / 10 * s;  // multiply by s
 }
 function metricLabel(unit) {
   if (unit === 'bodyweight') return 'reps/set';
@@ -552,7 +553,7 @@ async function loadChart(exId) {
   if (!logs.length){area.innerHTML=`<div style="text-align:center;color:var(--text2);padding:40px;font-size:14px">No weight data recorded yet.</div>`;return;}
   const unit=logs[logs.length-1].unit||'kg';
   const label=metricLabel(unit);
-  const vals=logs.map(l=>est1RM(l.weight,l.reps,l.unit||unit));
+  const vals=logs.map(l=>est1RM(l.weight, l.reps, l.unit||unit, l.sets));
   const latestVal=vals[vals.length-1], bestVal=Math.max(...vals);
   area.innerHTML=`
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
@@ -563,7 +564,7 @@ async function loadChart(exId) {
     <div class="sec">History</div>
     <div class="card" style="padding:4px 16px">
       ${logs.slice().reverse().map(l=>{
-        const e=est1RM(l.weight,l.reps,l.unit||unit);
+        const e=est1RM(l.weight, l.reps, l.unit||unit, l.sets);
         const isBW=unit==='bodyweight', isTimed=unit==='sec'||unit==='min';
         const rawStr=isBW?`${l.reps||0} reps`:isTimed?`${l.weight} ${l.unit||unit}`:`${l.weight}${l.reps?` × ${l.reps}r`:''} ${l.unit||unit}`;
         const e1Str=(!isBW&&!isTimed&&l.reps&&l.reps>1)?`${e} e1RM`:'';
@@ -635,8 +636,8 @@ async function loadOverview() {
   const rows = Object.entries(grouped).map(([exId,logs])=>{
     const ex=exMap[exId]; if(!ex) return '';
     const unit=logs[logs.length-1].unit||'kg';
-    const firstE=est1RM(logs[0].weight,logs[0].reps,logs[0].unit||unit);
-    const latestE=est1RM(logs[logs.length-1].weight,logs[logs.length-1].reps,unit);
+    const firstE=est1RM(logs[0].weight,logs[0].reps,logs[0].unit||unit,logs[0].sets);
+    const latestE=est1RM(logs[logs.length-1].weight,logs[logs.length-1].reps,logs[logs.length-1].unit||unit,logs[logs.length-1].sets);
     const label=metricLabel(unit);
     const pct=firstE>0?((latestE-firstE)/firstE*100):0;
     const trend=pct>0.5?`<span style="color:var(--accent);font-weight:700;font-size:13px">↑ ${pct.toFixed(1)}%</span>`
