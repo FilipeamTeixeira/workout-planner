@@ -166,7 +166,7 @@
 
 <script>
 // ── Default exercise library ──────────────────────────────────────────────────
-const APP_VERSION = '2'; // bump this before every deploy to trigger the update banner
+const APP_VERSION = '3'; // bump this before every deploy to trigger the update banner
 const DEFAULT_EXERCISES = [
   // Chest
   {name:'Barbell Bench Press',   category:'Strength',  muscleGroup:'Chest'},
@@ -278,6 +278,23 @@ function setUnit(val) {
   const wtRow = document.getElementById('fwt-row'); if (!wtRow) return;
   const lbl   = document.getElementById('fwt-lbl'); if (lbl) lbl.textContent = (val==='sec'||val==='min') ? 'Duration' : 'Weight';
   wtRow.style.display = val === 'bodyweight' ? 'none' : '';
+}
+
+// ── Performance index ─────────────────────────────────────────────────────────
+// Epley 1RM formula. For bodyweight returns reps; for timed returns duration.
+// Old log entries without reps fall back to raw weight gracefully.
+function est1RM(weight, reps, unit) {
+  const w = parseFloat(weight) || 0;
+  const r = parseInt(reps)    || 0;
+  if (unit === 'bodyweight') return r || w;
+  if (unit === 'sec' || unit === 'min') return w;
+  if (!r || r === 1) return w;
+  return Math.round(w * (1 + r / 30) * 10) / 10; // Epley
+}
+function metricLabel(unit) {
+  if (unit === 'bodyweight') return 'reps/set';
+  if (unit === 'sec' || unit === 'min') return unit;
+  return `e1RM (${unit||'kg'})`;
 }
 
 function toast(msg) {
